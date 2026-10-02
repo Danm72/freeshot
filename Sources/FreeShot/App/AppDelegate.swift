@@ -18,6 +18,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: .freeShotHotkeysChanged, object: nil, queue: .main) { [weak self] _ in
             self?.registerHotkeys()
         }
+        NotificationCenter.default.addObserver(forName: .freeShotHotkeysSuspend, object: nil, queue: .main) { [weak self] note in
+            guard let self else { return }
+            if note.userInfo?["suspended"] as? Bool == true {
+                self.hotkeys.unregisterAll()
+            } else {
+                self.registerHotkeys()
+            }
+        }
 
         checkScreenRecordingPermission()
 

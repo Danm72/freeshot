@@ -54,6 +54,9 @@ extension Notification.Name {
     static let freeShotHistoryChanged = Notification.Name("FreeShotHistoryChanged")
     /// Post after hotkeys change in Settings. AppDelegate re-registers them.
     static let freeShotHotkeysChanged = Notification.Name("FreeShotHotkeysChanged")
+    /// The Settings hotkey recorder posts this while it waits for a key (userInfo["suspended"] = true)
+    /// and when it stops (false). AppDelegate unregisters the Carbon hotkeys meanwhile.
+    static let freeShotHotkeysSuspend = Notification.Name("FreeShotHotkeysSuspend")
 }
 
 /// The single holder of module instances and shared state.
@@ -63,16 +66,20 @@ final class ModuleRegistry {
     let settings = AppSettings.shared
     let history = CaptureHistory()
 
-    var capture: CaptureModule = StubCapture()
-    var pipeline: PipelineModule = StubPipeline()
-    var annotate: AnnotateModule = StubAnnotate()
-    var pin: PinModule = StubPin()
-    var ocr: OCRModule = StubOCR()
-    var recorder: RecorderModule = StubRecorder()
-    var settingsUI: SettingsUI = StubSettingsUI()
+    // Lazy, not stored: several modules read ModuleRegistry.shared while they initialise,
+    // which would recurse into this static initialiser.
+    lazy var capture: CaptureModule = CaptureController()
+    lazy var pipeline: PipelineModule = QuickAccessPipeline()
+    lazy var annotate: AnnotateModule = AnnotateController()
+    lazy var pin: PinModule = PinController()
+    lazy var ocr: OCRModule = OCRController()
+    lazy var recorder: RecorderModule = ScreenRecorder()
+    lazy var settingsUI: SettingsUI = SettingsWindowController()
 
     private init() {}
 
-    /// The integrator replaces stub assignments here with the concrete modules.
-    func installDefaults() {}
+    /// Creates every module up front. AppDelegate calls this first, before any hotkey or URL.
+    func installDefaults() {
+        _ = (capture, pipeline, annotate, pin, ocr, recorder, settingsUI)
+    }
 }

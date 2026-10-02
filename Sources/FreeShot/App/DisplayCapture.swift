@@ -3,7 +3,7 @@ import CoreGraphics
 import FreeShotCore
 import ScreenCaptureKit
 
-/// Minimal display grab used by the CLI path and the fullscreen stub.
+/// Minimal display grab used by the CLI path and shared display helpers.
 /// Capture/ owns the full ScreenCapturer; this stays as the headless smoke-test path.
 enum DisplayCapture {
     struct Shot {
