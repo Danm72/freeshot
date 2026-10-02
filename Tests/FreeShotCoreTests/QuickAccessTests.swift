@@ -123,6 +123,17 @@ final class CapturePlanTests: XCTestCase {
         XCTAssertTrue(p.fileURL!.lastPathComponent.hasSuffix("@2x (2).png"))
     }
 
+    func testReservedNameCountsAsTaken() {
+        // Two captures in the same second: the first file is not on disk yet, but its name is reserved.
+        let first = CapturePlan.make(kind: .screenshot, scale: 2, date: date, options: opts(), names: names,
+                                     exists: CapturePlan.existsCheck(reserved: [], onDisk: { _ in false }))
+        let reserved: Set<URL> = [first.fileURL!.standardizedFileURL]
+        let second = CapturePlan.make(kind: .screenshot, scale: 2, date: date, options: opts(), names: names,
+                                      exists: CapturePlan.existsCheck(reserved: reserved, onDisk: { _ in false }))
+        XCTAssertNotEqual(first.fileURL, second.fileURL)
+        XCTAssertTrue(second.fileURL!.lastPathComponent.hasSuffix("@2x (2).png"))
+    }
+
     func testRecordingInSaveFolderStaysPut() {
         let src = save.appendingPathComponent("Screen Recording 2026-10-02 at 10.21.18.mp4")
         let p = CapturePlan.make(kind: .recording(src), scale: 2, date: date, options: opts(), names: names, exists: { _ in false })

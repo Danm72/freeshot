@@ -47,6 +47,14 @@ public struct CapturePlan: Equatable, Sendable {
             == folder.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
+    /// The `exists` check for `make`: a path is taken when it is on disk or reserved by a
+    /// capture whose file is still being written.
+    public static func existsCheck(reserved: Set<URL>,
+                                   onDisk: @escaping (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) })
+        -> (URL) -> Bool {
+        { url in onDisk(url) || reserved.contains(url.standardizedFileURL) }
+    }
+
     public static func make(kind: CaptureResult.Kind, scale: CGFloat, date: Date, options o: Options,
                             names: FilenameGenerator = FilenameGenerator(),
                             exists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }) -> CapturePlan {

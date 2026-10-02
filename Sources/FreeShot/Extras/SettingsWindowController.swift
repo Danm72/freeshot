@@ -4,7 +4,7 @@ import ServiceManagement
 import SwiftUI
 
 /// The Settings window: SwiftUI content in a plain NSWindow, one instance reused.
-final class SettingsWindowController: SettingsUI {
+final class SettingsWindowController: NSObject, SettingsUI, NSWindowDelegate {
     private var window: NSWindow?
     private let model = SettingsModel()
 
@@ -18,11 +18,17 @@ final class SettingsWindowController: SettingsUI {
             w.styleMask = [.titled, .closable, .miniaturizable]
             w.isReleasedWhenClosed = false
             w.center()
+            w.delegate = self
             window = w
         }
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }
+
+    // The recorder suspends every global hotkey. End it whenever the window can no longer
+    // receive the key press, so the hotkeys always come back.
+    func windowWillClose(_ notification: Notification) { model.stopRecording() }
+    func windowDidResignKey(_ notification: Notification) { model.stopRecording() }
 }
 
 /// Bridges AppSettings to SwiftUI. Each change writes straight to UserDefaults.
@@ -43,6 +49,18 @@ final class SettingsModel: ObservableObject {
 
     private var monitor: Any?
     private var loading = false
+    private var resignObserver: NSObjectProtocol?
+
+    init() {
+        resignObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.stopRecording()
+        }
+    }
+
+    deinit {
+        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+    }
 
     func reload() {
         saveFolder = settings.saveFolder.path

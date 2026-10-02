@@ -33,10 +33,13 @@ On first launch FreeShot reads the hotkeys from the CleanShot X preferences (`pl
 
 - URL scheme: `open freeshot://capture/fullscreen` (also `area`, `window`, `allinone`, `previous`, `ocr`, `record`).
 - Headless capture: `FreeShot.app/Contents/MacOS/FreeShot --capture fullscreen --out /tmp/shot.png`. It writes the PNG, prints the path and exits.
+- A run from a shell uses the Screen Recording grant of the terminal, not the grant of FreeShot. To test the grant of FreeShot, run `scripts/verify-capture.sh`. It starts FreeShot through `open` and checks the PNG.
 
 ## Permissions
 
 FreeShot needs Screen Recording permission. On first launch it asks for it. Turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then reopen FreeShot. The hotkeys need no Accessibility permission.
+
+If a capture fails because the permission is not on, FreeShot shows the alert again. The menu also shows a warning line until the permission is on.
 
 ## Defaults
 

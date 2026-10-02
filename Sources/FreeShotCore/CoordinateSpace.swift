@@ -104,18 +104,51 @@ public struct CoordinateSpace: Sendable {
     }
 }
 
-/// Axis lock and nudge helpers for area selection.
-public enum SelectionMath {
-    /// The rect between the drag start and the current point. With `lockAxis`, the smaller
-    /// delta collapses so the selection grows on one axis only (Shift in area mode).
-    public static func rect(from start: CGPoint, to current: CGPoint, lockAxis: Bool = false) -> CGRect {
-        var end = current
-        if lockAxis {
-            let dx = abs(current.x - start.x), dy = abs(current.y - start.y)
-            if dx >= dy { end.y = start.y } else { end.x = start.x }
+/// Shift during an area drag. The lock keeps the selection size it had when Shift went down
+/// on one axis, and lets the other axis follow the pointer (as macOS ⌘⇧4 does).
+public struct AxisLock: Equatable, Sendable {
+    public enum Axis: Equatable, Sendable {
+        /// x follows the pointer, y stays at the anchor.
+        case horizontal
+        /// y follows the pointer, x stays at the anchor.
+        case vertical
+    }
+
+    /// The drag end point when Shift went down.
+    public var anchor: CGPoint
+    /// The free axis. Nil until the pointer moves `threshold` points from the anchor.
+    public private(set) var axis: Axis?
+    public var threshold: CGFloat
+
+    public init(anchor: CGPoint, threshold: CGFloat = 2) {
+        self.anchor = anchor
+        self.threshold = threshold
+    }
+
+    /// The locked end point for the pointer at `current`. The first clear move picks the free
+    /// axis, and the choice then stays. Before that move, the end stays at the anchor.
+    public mutating func end(for current: CGPoint) -> CGPoint {
+        let dx = abs(current.x - anchor.x), dy = abs(current.y - anchor.y)
+        if axis == nil, max(dx, dy) >= threshold { axis = dx >= dy ? .horizontal : .vertical }
+        switch axis {
+        case .horizontal: return CGPoint(x: current.x, y: anchor.y)
+        case .vertical: return CGPoint(x: anchor.x, y: current.y)
+        case nil: return anchor
         }
-        return CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
-                      width: abs(end.x - start.x), height: abs(end.y - start.y))
+    }
+
+    /// Moves the anchor with the selection (Space-drag).
+    public mutating func shift(by d: CGVector) {
+        anchor = CGPoint(x: anchor.x + d.dx, y: anchor.y + d.dy)
+    }
+}
+
+/// Selection helpers for area selection.
+public enum SelectionMath {
+    /// The rect between the drag start and the end point. Apply an `AxisLock` to the end first.
+    public static func rect(from start: CGPoint, to end: CGPoint) -> CGRect {
+        CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+               width: abs(end.x - start.x), height: abs(end.y - start.y))
     }
 
     /// Size label shown while dragging, in pixels: "640 × 480".

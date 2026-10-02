@@ -7,17 +7,10 @@ public enum CaptureGeometry {
 
     // MARK: Selection
 
-    /// The rect from the drag start to the current point.
-    /// - lockAxis (Shift): the selection grows on one axis only.
+    /// The rect from the drag start to the end point. Apply an `AxisLock` (Shift) to the end first.
     /// - fromCenter (Option): the start point is the centre of the rect.
-    public static func selection(from start: CGPoint, to current: CGPoint,
-                                 lockAxis: Bool = false, fromCenter: Bool = false) -> CGRect {
-        guard fromCenter else { return SelectionMath.rect(from: start, to: current, lockAxis: lockAxis) }
-        var end = current
-        if lockAxis {
-            let dx = abs(current.x - start.x), dy = abs(current.y - start.y)
-            if dx >= dy { end.y = start.y } else { end.x = start.x }
-        }
+    public static func selection(from start: CGPoint, to end: CGPoint, fromCenter: Bool = false) -> CGRect {
+        guard fromCenter else { return SelectionMath.rect(from: start, to: end) }
         let w = abs(end.x - start.x), h = abs(end.y - start.y)
         return CGRect(x: start.x - w, y: start.y - h, width: w * 2, height: h * 2)
     }
@@ -39,6 +32,12 @@ public enum CaptureGeometry {
     public static let clickThreshold: CGFloat = 3
 
     public static func isClick(_ r: CGRect) -> Bool { r.width < clickThreshold && r.height < clickThreshold }
+
+    /// True when a selection has no whole pixel on one axis. It cannot be captured, so the
+    /// overlay treats it as a click and stays open.
+    public static func isDegenerate(_ r: CGRect, scale: CGFloat) -> Bool {
+        r.isNull || r.width * max(scale, 1) < 1 || r.height * max(scale, 1) < 1
+    }
 
     /// Moves a rect by `delta` but keeps it inside `bounds` (Space-drag moves the whole selection).
     public static func move(_ r: CGRect, by delta: CGVector, within bounds: CGRect) -> CGRect {
@@ -130,14 +129,18 @@ public struct PickableWindow: Equatable, Sendable {
     public var ownerPID: Int32
     public var ownerName: String
     public var title: String
+    /// kCGWindowAlpha, 0...1. Some helper apps keep invisible alpha-0 windows on screen.
+    public var alpha: Double
 
-    public init(windowID: UInt32, cgFrame: CGRect, layer: Int, ownerPID: Int32, ownerName: String = "", title: String = "") {
+    public init(windowID: UInt32, cgFrame: CGRect, layer: Int, ownerPID: Int32, ownerName: String = "", title: String = "",
+                alpha: Double = 1) {
         self.windowID = windowID
         self.cgFrame = cgFrame
         self.layer = layer
         self.ownerPID = ownerPID
         self.ownerName = ownerName
         self.title = title
+        self.alpha = alpha
     }
 
     /// Parses one CGWindowList dictionary. Returns nil when a needed key is missing.
@@ -153,13 +156,17 @@ public struct PickableWindow: Equatable, Sendable {
         self.ownerPID = (d["kCGWindowOwnerPID"] as? NSNumber)?.int32Value ?? 0
         self.ownerName = d["kCGWindowOwnerName"] as? String ?? ""
         self.title = d["kCGWindowName"] as? String ?? ""
+        self.alpha = (d["kCGWindowAlpha"] as? NSNumber)?.doubleValue ?? 1
     }
 }
 
 public enum WindowHitTest {
     /// Keeps normal app windows: layer 0, not ours, big enough to aim at, not fully transparent.
     public static func pickable(_ windows: [PickableWindow], excludingPID own: Int32, minSide: CGFloat = 20) -> [PickableWindow] {
-        windows.filter { $0.layer == 0 && $0.ownerPID != own && $0.cgFrame.width >= minSide && $0.cgFrame.height >= minSide }
+        windows.filter {
+            $0.layer == 0 && $0.ownerPID != own && $0.alpha > 0.01
+                && $0.cgFrame.width >= minSide && $0.cgFrame.height >= minSide
+        }
     }
 
     /// The front-most window that contains a CG point. `windows` must be front-to-back.

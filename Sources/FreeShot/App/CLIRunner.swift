@@ -16,6 +16,8 @@ enum CLIRunner {
             fail(.usage, "only '--capture fullscreen' runs headless; use freeshot://capture/\(cmd.action.rawValue) for the rest")
         }
         // Do not prompt from the CLI: the TCC prompt would name the parent process.
+        // A run from a shell checks the terminal's grant, not FreeShot's (TCC holds the parent
+        // responsible). scripts/verify-capture.sh launches through LaunchServices to test FreeShot's own grant.
         guard CGPreflightScreenCaptureAccess() else {
             fail(.noPermission, "Screen Recording permission is not granted. Grant it to FreeShot in System Settings > Privacy & Security.")
         }
@@ -23,9 +25,15 @@ enum CLIRunner {
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
 
+        // AppKit screen data is read here, on the main thread; the task gets plain values.
+        guard let screen = DisplayCapture.screenUnderMouse(), let displayID = DisplayCapture.displayID(of: screen) else {
+            fail(.failure, "capture failed: no screen under the mouse")
+        }
+        let frame = screen.frame, scale = screen.backingScaleFactor
+
         Task.detached {
             do {
-                let shot = try await DisplayCapture.captureDisplayUnderMouse()
+                let shot = try await DisplayCapture.capture(displayID: displayID, cocoaFrame: frame, scale: scale)
                 let url = cmd.output ?? FilenameGenerator().uniqueURL(
                     in: AppSettings.shared.saveFolder, kind: .screenshot(scale: shot.scale), date: Date())
                 try ImageExport.writePNG(shot.image, to: url, scale: shot.scale)

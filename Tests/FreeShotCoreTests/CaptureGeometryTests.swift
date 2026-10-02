@@ -11,9 +11,27 @@ final class CaptureGeometryTests: XCTestCase {
         XCTAssertEqual(r, CGRect(x: 40, y: 100, width: 60, height: 60))
     }
 
-    func testSelectionShiftLocksToLargerAxis() {
-        let r = CaptureGeometry.selection(from: CGPoint(x: 0, y: 0), to: CGPoint(x: 50, y: 10), lockAxis: true)
-        XCTAssertEqual(r, CGRect(x: 0, y: 0, width: 50, height: 0))
+    func testSelectionWithShiftLockKeepsBothSides() {
+        var lock = AxisLock(anchor: CGPoint(x: 400, y: 300))
+        let end = lock.end(for: CGPoint(x: 450, y: 310))
+        let r = CaptureGeometry.selection(from: CGPoint(x: 0, y: 0), to: end)
+        XCTAssertEqual(r, CGRect(x: 0, y: 0, width: 450, height: 300))
+        XCTAssertFalse(CaptureGeometry.isDegenerate(r, scale: 2))
+    }
+
+    func testSelectionFromCenterWithShiftLock() {
+        var lock = AxisLock(anchor: CGPoint(x: 130, y: 80))
+        let end = lock.end(for: CGPoint(x: 150, y: 82))
+        let r = CaptureGeometry.selection(from: CGPoint(x: 100, y: 100), to: end, fromCenter: true)
+        XCTAssertEqual(r, CGRect(x: 50, y: 80, width: 100, height: 40))
+    }
+
+    func testIsDegenerate() {
+        XCTAssertTrue(CaptureGeometry.isDegenerate(CGRect(x: 0, y: 0, width: 400, height: 0), scale: 2))
+        XCTAssertTrue(CaptureGeometry.isDegenerate(CGRect(x: 0, y: 0, width: 0.4, height: 300), scale: 2))
+        XCTAssertTrue(CaptureGeometry.isDegenerate(.null, scale: 2))
+        XCTAssertFalse(CaptureGeometry.isDegenerate(CGRect(x: 0, y: 0, width: 0.5, height: 300), scale: 2))
+        XCTAssertFalse(CaptureGeometry.isDegenerate(CGRect(x: 0, y: 0, width: 1, height: 1), scale: 1))
     }
 
     func testSelectionFromCenter() {
@@ -113,7 +131,27 @@ final class CaptureGeometryTests: XCTestCase {
         XCTAssertEqual(w?.windowID, 42)
         XCTAssertEqual(w?.cgFrame, CGRect(x: 10, y: 20, width: 300, height: 200))
         XCTAssertEqual(w?.ownerName, "Safari")
+        XCTAssertEqual(w?.alpha, 1)
         XCTAssertNil(PickableWindow(cgInfo: ["kCGWindowNumber": NSNumber(value: 1)]))
+    }
+
+    func testPickableSkipsTransparentWindowInFront() {
+        var info: [String: Any] = [
+            "kCGWindowNumber": NSNumber(value: 9),
+            "kCGWindowBounds": ["X": NSNumber(value: 0), "Y": NSNumber(value: 0),
+                                "Width": NSNumber(value: 1000), "Height": NSNumber(value: 800)],
+            "kCGWindowLayer": NSNumber(value: 0),
+            "kCGWindowOwnerPID": NSNumber(value: 50),
+            "kCGWindowAlpha": NSNumber(value: 0),
+        ]
+        let invisible = PickableWindow(cgInfo: info)!
+        XCTAssertEqual(invisible.alpha, 0)
+        info["kCGWindowNumber"] = NSNumber(value: 10)
+        info["kCGWindowAlpha"] = NSNumber(value: 1)
+        let visible = PickableWindow(cgInfo: info)!
+        let picks = WindowHitTest.pickable([invisible, visible], excludingPID: 1)
+        XCTAssertEqual(picks.map(\.windowID), [10])
+        XCTAssertEqual(WindowHitTest.window(at: CGPoint(x: 100, y: 100), in: picks)?.windowID, 10)
     }
 
     func testHitTestPicksFrontMostAndSkipsOwnAndMenuBar() {

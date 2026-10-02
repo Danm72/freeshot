@@ -30,11 +30,13 @@ final class CaptureController: CaptureModule, AreaOverlayDelegate {
     func startRecording() { startSession(purpose: .record, mode: .area, hud: false) }
 
     func captureFullscreen() {
+        if cancelCountdown() { return }
         guard !isBusy, let screen = ScreenCapturer.screenUnderMouse() else { return }
         liveFullscreen(screen)
     }
 
     func capturePreviousArea() {
+        if cancelCountdown() { return }
         guard !isBusy else { return }
         guard let last = settings.lastArea, let screen = ScreenCapturer.screen(for: last.displayID) else {
             captureArea()
@@ -45,7 +47,15 @@ final class CaptureController: CaptureModule, AreaOverlayDelegate {
 
     // MARK: Session
 
+    /// A capture hotkey during a self-timer countdown cancels the countdown. Returns true when it did.
+    private func cancelCountdown() -> Bool {
+        guard SelfTimer.isRunning else { return false }
+        SelfTimer.cancelActive()
+        return true
+    }
+
     private func startSession(purpose: OverlayPurpose, mode: OverlayMode, hud: Bool) {
+        if cancelCountdown() { return }
         if session != nil {
             // The same hotkey again while the overlay is up closes it.
             endSession()
@@ -66,6 +76,7 @@ final class CaptureController: CaptureModule, AreaOverlayDelegate {
                 s.show()
             } catch {
                 captureLog("snapshot failed: \(error)")
+                ScreenRecordingPermission.explainFailure(error)
             }
         }
     }
@@ -191,6 +202,7 @@ final class CaptureController: CaptureModule, AreaOverlayDelegate {
                 self.deliver(image: snap.image, scale: snap.scale, rect: snap.descriptor.cocoaFrame, displayID: snap.descriptor.id)
             } catch {
                 captureLog("fullscreen failed: \(error)")
+                ScreenRecordingPermission.explainFailure(error)
             }
         }
     }
@@ -203,6 +215,7 @@ final class CaptureController: CaptureModule, AreaOverlayDelegate {
                 use(img, snap.scale)
             } catch {
                 captureLog("area capture failed: \(error)")
+                ScreenRecordingPermission.explainFailure(error)
             }
         }
     }
@@ -229,6 +242,7 @@ final class CaptureController: CaptureModule, AreaOverlayDelegate {
                 captureLog("window \(window.windowID) came back the wrong size; cropping the screen instead")
             } catch {
                 captureLog("window capture failed: \(error); cropping the screen instead")
+                if ScreenRecordingPermission.explainFailure(error) { return }
             }
             if let snap {
                 self.deliverCrop(of: snap, rect: frame.intersection(snap.descriptor.cocoaFrame))

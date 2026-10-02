@@ -55,18 +55,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settings = ModuleRegistry.shared.settings
         guard !settings.permissionAlertShown else { return }
         settings.permissionAlertShown = true
-        let alert = NSAlert()
-        alert.messageText = "FreeShot needs Screen Recording permission"
-        alert.informativeText = """
-        Open System Settings > Privacy & Security > Screen & System Audio Recording. \
-        Turn on FreeShot, then quit and reopen FreeShot.
-        """
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Later")
-        NSApp.activate()
-        if alert.runModal() == .alertFirstButtonReturn,
-           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-            NSWorkspace.shared.open(url)
-        }
+        ScreenRecordingPermission.showAlert()
     }
 }

@@ -49,6 +49,8 @@ final class AreaOverlaySession {
     private var dragCurrent: CGPoint = .zero
     private var dragSnapshot: DisplaySnapshot?
     private var spaceHeld = false
+    /// Set when Shift goes down during a drag; cleared when it comes up.
+    private var axisLock: AxisLock?
     private var lastMouse: CGPoint = .zero
     private var selection: CGRect?
     private var hovered: PickableWindow?
@@ -142,6 +144,7 @@ final class AreaOverlaySession {
         dragCurrent = start
         lastMouse = p
         selection = nil
+        axisLock = nil
         refresh()
     }
 
@@ -158,6 +161,7 @@ final class AreaOverlaySession {
             start = CGPoint(x: start.x + real.dx, y: start.y + real.dy)
             dragStart = start
             dragCurrent = CGPoint(x: dragCurrent.x + real.dx, y: dragCurrent.y + real.dy)
+            axisLock?.shift(by: real)
         } else {
             dragCurrent = current
         }
@@ -181,9 +185,16 @@ final class AreaOverlaySession {
             dragStart = nil
             dragSnapshot = nil
             spaceHeld = false
+            axisLock = nil
             if CaptureGeometry.isClick(sel) {
                 selection = nil
                 if purpose == .record { delegate?.overlay(self, didClickFullDisplay: snap) } else { refresh() }
+                return
+            }
+            // A selection with no whole pixel on one axis cannot be captured. Keep the overlay open.
+            if CaptureGeometry.isDegenerate(sel, scale: snap.scale) {
+                selection = nil
+                refresh()
                 return
             }
             delegate?.overlay(self, didSelectArea: sel, on: snap)
@@ -197,9 +208,9 @@ final class AreaOverlaySession {
 
     private func recomputeSelection(modifiers: NSEvent.ModifierFlags) {
         guard let snap = dragSnapshot, let start = dragStart else { return }
-        let raw = CaptureGeometry.selection(from: start, to: dragCurrent,
-                                            lockAxis: modifiers.contains(.shift),
-                                            fromCenter: modifiers.contains(.option))
+        // Shift locks one axis at the size it had when Shift went down (see flagsChanged).
+        let end = axisLock?.end(for: dragCurrent) ?? dragCurrent
+        let raw = CaptureGeometry.selection(from: start, to: end, fromCenter: modifiers.contains(.option))
         let clipped = raw.intersection(snap.descriptor.cocoaFrame)
         selection = clipped.isNull ? .zero : CaptureGeometry.pixelAligned(clipped, scale: snap.scale)
     }
@@ -233,7 +244,17 @@ final class AreaOverlaySession {
     }
 
     func flagsChanged(_ e: NSEvent) {
-        if dragStart != nil { recomputeSelection(modifiers: e.modifierFlags); refresh() }
+        guard dragStart != nil else { return }
+        let shift = e.modifierFlags.contains(.shift)
+        if shift, axisLock == nil {
+            axisLock = AxisLock(anchor: dragCurrent)
+        } else if !shift, var lock = axisLock {
+            // Keep the locked shape when Shift comes up just before mouse-up.
+            dragCurrent = lock.end(for: dragCurrent)
+            axisLock = nil
+        }
+        recomputeSelection(modifiers: e.modifierFlags)
+        refresh()
     }
 
     /// Arrow keys move the pointer 1 pt (10 pt with Shift) for exact edges.

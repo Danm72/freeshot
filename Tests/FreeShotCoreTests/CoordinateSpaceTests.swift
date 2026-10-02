@@ -75,11 +75,43 @@ final class CoordinateSpaceTests: XCTestCase {
         XCTAssertEqual(space.localPixels(fromCocoa: CGRect(x: 4000, y: 0, width: 10, height: 10), on: primary), .zero)
     }
 
-    func testSelectionAxisLock() {
+    func testSelectionRectAnyDirection() {
         let s = CGPoint(x: 100, y: 100)
         XCTAssertEqual(SelectionMath.rect(from: s, to: CGPoint(x: 50, y: 160)), CGRect(x: 50, y: 100, width: 50, height: 60))
-        XCTAssertEqual(SelectionMath.rect(from: s, to: CGPoint(x: 300, y: 120), lockAxis: true), CGRect(x: 100, y: 100, width: 200, height: 0))
-        XCTAssertEqual(SelectionMath.rect(from: s, to: CGPoint(x: 110, y: 20), lockAxis: true), CGRect(x: 100, y: 20, width: 0, height: 80))
         XCTAssertEqual(SelectionMath.sizeLabel(for: CGRect(x: 0, y: 0, width: 320, height: 240.4), scale: 2), "640 × 481")
+    }
+
+    func testAxisLockKeepsHeightWhenPointerMovesSideways() {
+        // Drag 400 x 300, press Shift, move right: the height stays 300, it never collapses.
+        let start = CGPoint(x: 100, y: 100)
+        var lock = AxisLock(anchor: CGPoint(x: 500, y: 400))
+        let end = lock.end(for: CGPoint(x: 600, y: 390))
+        XCTAssertEqual(lock.axis, .horizontal)
+        XCTAssertEqual(SelectionMath.rect(from: start, to: end), CGRect(x: 100, y: 100, width: 500, height: 300))
+    }
+
+    func testAxisLockKeepsWidthWhenPointerMovesVertically() {
+        let start = CGPoint(x: 100, y: 100)
+        var lock = AxisLock(anchor: CGPoint(x: 500, y: 400))
+        let end = lock.end(for: CGPoint(x: 505, y: 200))
+        XCTAssertEqual(lock.axis, .vertical)
+        XCTAssertEqual(SelectionMath.rect(from: start, to: end), CGRect(x: 100, y: 100, width: 400, height: 100))
+    }
+
+    func testAxisLockChoiceSticksAndWaitsForClearMove() {
+        var lock = AxisLock(anchor: CGPoint(x: 500, y: 400))
+        // Under the threshold: nothing is chosen and the end stays at the anchor.
+        XCTAssertEqual(lock.end(for: CGPoint(x: 501, y: 401)), CGPoint(x: 500, y: 400))
+        XCTAssertNil(lock.axis)
+        _ = lock.end(for: CGPoint(x: 520, y: 405))
+        XCTAssertEqual(lock.axis, .horizontal)
+        // A later vertical move does not flip the free axis.
+        XCTAssertEqual(lock.end(for: CGPoint(x: 530, y: 900)), CGPoint(x: 530, y: 400))
+    }
+
+    func testAxisLockShiftMovesAnchor() {
+        var lock = AxisLock(anchor: CGPoint(x: 10, y: 10))
+        lock.shift(by: CGVector(dx: 5, dy: -3))
+        XCTAssertEqual(lock.anchor, CGPoint(x: 15, y: 7))
     }
 }

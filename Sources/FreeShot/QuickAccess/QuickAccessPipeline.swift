@@ -7,19 +7,26 @@ import FreeShotCore
 final class QuickAccessPipeline: PipelineModule {
     private var registry: ModuleRegistry { .shared }
     private let ioQueue = DispatchQueue(label: "ie.mawla.freeshot.pipeline", qos: .userInitiated)
+    /// Target paths of captures whose file is not on disk yet. Main thread only.
+    /// Two captures in the same second would otherwise get the same name and overwrite each other.
+    private var reserved = Set<URL>()
 
     func handle(_ result: CaptureResult) {
+        dispatchPrecondition(condition: .onQueue(.main))
         let settings = registry.settings
         let options = CapturePlan.Options(save: settings.saveAfterCapture, copy: settings.copyAfterCapture,
                                           overlay: settings.showOverlayAfterCapture,
                                           saveFolder: settings.saveFolder, tempFolder: CapturePlan.defaultTempFolder)
-        let plan = CapturePlan.make(kind: result.kind, scale: result.scale, date: result.date, options: options)
+        let plan = CapturePlan.make(kind: result.kind, scale: result.scale, date: result.date, options: options,
+                                    exists: CapturePlan.existsCheck(reserved: reserved))
+        if let url = plan.fileURL { reserved.insert(url.standardizedFileURL) }
         if settings.soundsEnabled { Self.playCaptureSound() }
 
         switch result.kind {
         case .screenshot:
             guard let image = result.image else {
                 Self.log("screenshot result has no image")
+                if let url = plan.fileURL { reserved.remove(url.standardizedFileURL) }
                 return
             }
             // PNG encoding is slow for a full Retina display; keep it off the main thread.
@@ -62,6 +69,8 @@ final class QuickAccessPipeline: PipelineModule {
 
     private func finish(plan: CapturePlan, image: CGImage?, scale: CGFloat, file: URL?,
                         kind: HistoryEntry.Kind, result: CaptureResult) {
+        // Release the name whether or not the write worked; a written file now blocks it on disk.
+        if let url = plan.fileURL { reserved.remove(url.standardizedFileURL) }
         if plan.addToHistory, let file, !plan.isTemporary {
             registry.history.add(HistoryEntry(url: file, date: result.date, kind: kind))
             NotificationCenter.default.post(name: .freeShotHistoryChanged, object: nil)

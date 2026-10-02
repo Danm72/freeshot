@@ -73,6 +73,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(item)
         }
 
+        if !ScreenRecordingPermission.isGranted {
+            menu.addItem(.separator())
+            let item = NSMenuItem(title: "⚠︎ Screen Recording not granted", action: #selector(openPermissionPane),
+                                  keyEquivalent: "")
+            item.target = self
+            item.toolTip = "Click to open System Settings. Turn on FreeShot, then reopen FreeShot."
+            menu.addItem(item)
+        }
+
         if !hotkeys.failures.isEmpty {
             menu.addItem(.separator())
             for f in hotkeys.failures {
@@ -139,6 +148,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             NSWorkspace.shared.open(url)
         }
     }
+
+    @objc private func openPermissionPane() { ScreenRecordingPermission.openSettings() }
 
     @objc private func openFolder() {
         let folder = ModuleRegistry.shared.settings.saveFolder
