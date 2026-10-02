@@ -84,7 +84,7 @@ final class QuickAccessAutoCloseTests: XCTestCase {
 
 final class CapturePlanTests: XCTestCase {
     let date = Date(timeIntervalSince1970: 1_790_000_000)
-    let save = URL(fileURLWithPath: "/Users/dan/screenshots", isDirectory: true)
+    let save = URL(fileURLWithPath: "/Users/example/screenshots", isDirectory: true)
     let temp = URL(fileURLWithPath: "/tmp/FreeShotTest", isDirectory: true)
     let names = FilenameGenerator(timeZone: TimeZone(identifier: "Europe/Dublin")!)
 

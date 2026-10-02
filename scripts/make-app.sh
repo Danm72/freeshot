@@ -14,7 +14,14 @@ for arg in "$@"; do
   esac
 done
 
-IDENTITY="${FREESHOT_SIGN_IDENTITY:-Apple Development: Created via API (2SA7G962C4)}"
+# Signing identity: FREESHOT_SIGN_IDENTITY, else the first "Apple Development" identity
+# in the keychain, else ad-hoc ("-"). Ad-hoc builds lose the Screen Recording grant on rebuild.
+if [[ -n "${FREESHOT_SIGN_IDENTITY:-}" ]]; then
+  IDENTITY="$FREESHOT_SIGN_IDENTITY"
+else
+  IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1)"
+  IDENTITY="${IDENTITY:--}"
+fi
 BUNDLE_ID="ie.mawla.freeshot"
 VERSION="${FREESHOT_VERSION:-0.1.0}"
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"

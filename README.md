@@ -11,7 +11,7 @@ scripts/make-app.sh            # builds and signs dist/FreeShot.app
 scripts/make-app.sh --install  # also copies it to /Applications
 ```
 
-The script signs with "Apple Development: Created via API (2SA7G962C4)". A stable signature keeps the Screen Recording grant across rebuilds. Set `FREESHOT_SIGN_IDENTITY` to use a different identity.
+The script signs with the first "Apple Development" identity in your keychain. A stable signature keeps the Screen Recording grant across rebuilds. Set `FREESHOT_SIGN_IDENTITY` to use a different identity. With no identity, the script signs ad hoc, and macOS asks for the Screen Recording grant again after each rebuild.
 
 ## Install
 
@@ -55,3 +55,7 @@ Captures go to `~/screenshots` as `Screenshot 2026-10-02 at 10.21.18@2x.png`. Af
 | `Sources/FreeShot/QuickAccess` | After-capture pipeline and Quick Access Overlay |
 | `Sources/FreeShot/Annotate` | Annotate editor |
 | `Sources/FreeShot/Extras` | Pin, OCR, screen recording, Settings window |
+
+## Licence
+
+MIT. See `LICENSE`.
